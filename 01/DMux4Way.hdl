@@ -1,0 +1,42 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/01/DMux4Way.hdl
+
+/**
+ * 4-way demultiplexor:
+ * {a, b, c, d} = {in, 0, 0, 0} if sel == 00
+ *                {0, in, 0, 0} if sel == 01
+ *                {0, 0, in, 0} if sel == 10
+ *                {0, 0, 0, in} if sel == 11
+ */
+
+CHIP DMux4Way {
+    IN in, sel[2];
+    OUT a, b, c, d;
+
+    PARTS:
+    // The following was my first attempt (which works) but is not great.
+    //Not (in=sel[0], out=notS1);
+    //Not (in=sel[1], out=notS2);
+    //And (a=notS2, b=notS1, out=a1); // 00
+    //And (a=notS2, b=sel[0], out=a2); // 01
+    //And (a=sel[1], b=notS1, out=a3); // 10
+    //And (a=sel[1], b=sel[0], out=a4); // 11
+
+
+    //And (a=in, b=a1, out=a);
+    //And (a=in, b=a2, out=b);
+    //And (a=in, b=a3, out=c);
+    //And (a=in, b=a4, out=d);
+
+    // Real First Attempt
+    //DMux (in=in, sel=sel[0], a=dmux1, b=dmux2);
+    //DMux (in=in, sel=sel[1], a=dmux3, b=dmux4);
+    //DMux (in=in, sel=)
+
+    // Best
+    DMux(in=in,sel=sel[1],a=ao,b=bo);
+    DMux(in=ao,sel=sel[0],a=a,b=b);
+    DMux(in=bo,sel=sel[0],a=c,b=d);
+}
