@@ -1,0 +1,4 @@
+push constant 10
+pop local 0
+push constant 21
+push constant 22
