@@ -1,0 +1,1 @@
+g++ main.cpp vm.cpp -lboost_filesystem -lboost_system -o main.out
