@@ -1,0 +1,7 @@
+// local[0]=1
+push constant 1
+pop local 0
+
+// local[1]=2
+push constant 2
+pop local 1
