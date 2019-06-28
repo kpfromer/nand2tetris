@@ -6,36 +6,37 @@
 #include <boost/format.hpp>
 #include <algorithm>
 #include <string>
+#include <functional>
 #include "vm.h"
 
 // TODO: improve space concerns by using short instead of int
 
 void vm::CodeWriter::a_command(const std::string & value) {
-  outputFile << "@" + value + "\n";
+  output.push_back("@" + value + "\n");
 }
 
 // Jumps to new label and returns the new label for later definiton
 std::string vm::CodeWriter::jump(const std::string & comp, const std::string & jump) {
   std::string label = new_label();
   a_command(label);
-  outputFile << comp + ";" + jump + "\n";
+  output.push_back(comp + ";" + jump + "\n");
   return label;
 }
 
 void vm::CodeWriter::jumpNoLabel(const std::string & comp, const std::string & jump) {
-  outputFile << comp + ";" + jump + "\n";
+  output.push_back(comp + ";" + jump + "\n");
 }
 
 void vm::CodeWriter::c_command(const std::string & dest, const std::string & comp) {
-  outputFile << dest + "=" + comp + "\n";
+  output.push_back(dest + "=" + comp + "\n");
 }
 
 void vm::CodeWriter::c_command(const std::string & dest, const std::string & comp, const std::string & jump) {
-  outputFile << dest + "=" + comp + ";" + jump + "\n";
+  output.push_back(dest + "=" + comp + ";" + jump + "\n");
 }
 
 void vm::CodeWriter::l_command(const std::string & label_name) {
-  outputFile << "(" + label_name + ")" + "\n";
+  output.push_back("(" + label_name + ")" + "\n");
 }
 
 // Just returns a random label name
@@ -298,136 +299,117 @@ bool vm::CodeWriter::is_const_seg(const std::string & seg) {
 
 void vm::CodeWriter::writeNote(const std::string & message) {
   if (options.notes) {
-    outputFile << "// " << message << std::endl;
+    output.push_back("// " + message + "\n");
   }
 }
 
 void vm::CodeWriter::writeNoteEnd() {
   if (options.notes) {
-    // outputFile << std::endl << std::endl;
   }
 }
 
 // Opens the outputFile for writing
-vm::CodeWriter::CodeWriter(const std::string& path, const std::string& outputFilename, const vm::Options & options): outputFile(path) {
+vm::CodeWriter::CodeWriter(std::vector<std::string> & outputLines, const std::string& outputFilename, const vm::Options & options): output(outputLines) {
+  // this->output = output;
   this->options = options;
   this->outputFilename = outputFilename;
 }
-vm::CodeWriter::~CodeWriter() {
-  close();
-}
 // writes the assembly instructions that effect the bootstrap code which initalizes the VM.
 void vm::CodeWriter::writeInit() {
-  if (outputFile.is_open()) {
-    writeNote("Initalize");
-    // SP = 256
-    a_command("256");
-    c_command("D", "A");
-    comp_to_reg(REG_SP, "D");
-    // call Sys.init
-    writeCall("Sys.init", 0);
-    writeNoteEnd();
-  }
+  writeNote("Initalize");
+  // SP = 256
+  a_command("256");
+  c_command("D", "A");
+  comp_to_reg(REG_SP, "D");
+  // call Sys.init
+  writeCall("Sys.init", 0);
+  writeNoteEnd();
 }
 // Writes the assembly code for the label command
 void vm::CodeWriter::writeLabel(const std::string& label) {
-  if (outputFile.is_open()) {
-    writeNote("label " + label);
-    l_command(label);
-    writeNoteEnd();
-  }
+  writeNote("label " + label);
+  l_command(label);
+  writeNoteEnd();
 }
 // Writes the assembly code for the goto command
 void vm::CodeWriter::writeGoto(const std::string& label) {
-  if (outputFile.is_open()) {
-    writeNote("goto " + label);
-    a_command(label);
-    jumpNoLabel("0", "JMP");
-    writeNoteEnd();
-  }
+  writeNote("goto " + label);
+  a_command(label);
+  jumpNoLabel("0", "JMP");
+  writeNoteEnd();
 }
 // Writes the assembly code for the if-goto command
 void vm::CodeWriter::writeIf(const std::string& label) {
-  if (outputFile.is_open()) {
-    writeNote("if-goto " + label);
-    pop_to_dest("D");
-    a_command(label);
-    jumpNoLabel("D", "JNE");
-    writeNoteEnd();
-  }
+  writeNote("if-goto " + label);
+  pop_to_dest("D");
+  a_command(label);
+  jumpNoLabel("D", "JNE");
+  writeNoteEnd();
 }
 // Writes the assembly code for the function command
 void vm::CodeWriter::writeFunction(const std::string& functionName, const unsigned int& numVars) {
-  if (outputFile.is_open()) {
-    writeNote("function " + functionName + " " + std::to_string(numVars));
-    writeLabel(functionName);
-    for (unsigned int i = 0; i < numVars; i++) {
-      writePushPop(C_PUSH, SEG_CONSTANT, 0);
-    }
-    writeNoteEnd();
+  writeNote("function " + functionName + " " + std::to_string(numVars));
+  writeLabel(functionName);
+  for (unsigned int i = 0; i < numVars; i++) {
+    writePushPop(C_PUSH, SEG_CONSTANT, 0);
   }
+  writeNoteEnd();
 }
 // Writes the assembly code for the call command
 void vm::CodeWriter::writeCall(const std::string& functionName, const unsigned int& numArgs) {
-  if (outputFile.is_open()) {
-    writeNote("call " + functionName + " " + std::to_string(numArgs));
-    std::string returnAddress = new_label();
-    // Add the return address to get back to caller (the return label will be converted to a line number by the assembler)
-    pushConstant(returnAddress);
-    // Save LCL of the caller
-    push(SEG_REG, REG_LCL);
-    // Save ARG of the caller
-    push(SEG_REG, REG_ARG);
-    // Save THIS of the caller
-    push(SEG_REG, REG_THIS);
-    // Save THAT of the caller
-    push(SEG_REG, REG_THAT);
-    // Repositions ARG (Moves ARG to the first argument passed to the calle)
-    // The 5 is number of values added to stack above (return address, saved LCL, saved ARG, saved THIS, saved THAT)
-    load_sp_offset(-numArgs - 5); // D = SP - 5 - numArgs
-    comp_to_reg(REG_ARG, "D"); // ARG = D = SP - 5 - numArgs
-    // Repositions LCL (Moves LCL to the end of the saved state (all of this stuff))
-    reg_to_reg(REG_SP, REG_LCL); // LCL = SP = end of the saved state
-    // Transfers control to the called function
-    writeGoto(functionName);
-    // Creates the return label used to move the program back up to caller after the call has finished returning it's value
-    writeLabel(returnAddress);
-    writeNoteEnd();
-  }
+  writeNote("call " + functionName + " " + std::to_string(numArgs));
+  std::string returnAddress = new_label();
+  // Add the return address to get back to caller (the return label will be converted to a line number by the assembler)
+  pushConstant(returnAddress);
+  // Save LCL of the caller
+  push(SEG_REG, REG_LCL);
+  // Save ARG of the caller
+  push(SEG_REG, REG_ARG);
+  // Save THIS of the caller
+  push(SEG_REG, REG_THIS);
+  // Save THAT of the caller
+  push(SEG_REG, REG_THAT);
+  // Repositions ARG (Moves ARG to the first argument passed to the calle)
+  // The 5 is number of values added to stack above (return address, saved LCL, saved ARG, saved THIS, saved THAT)
+  load_sp_offset(-numArgs - 5); // D = SP - 5 - numArgs
+  comp_to_reg(REG_ARG, "D"); // ARG = D = SP - 5 - numArgs
+  // Repositions LCL (Moves LCL to the end of the saved state (all of this stuff))
+  reg_to_reg(REG_SP, REG_LCL); // LCL = SP = end of the saved state
+  // Transfers control to the called function
+  writeGoto(functionName);
+  // Creates the return label used to move the program back up to caller after the call has finished returning it's value
+  writeLabel(returnAddress);
+  writeNoteEnd();
 }
 // Writes the assembly code for the return command
 void vm::CodeWriter::writeReturn() {
-  if (outputFile.is_open()) {
-    writeNote("return");
-    reg_to_reg(REG_LCL, REG_FRAME); // D = FRAME = LCL
-    // REG_RETURN = return address
-    a_command("5"); // A = 5
-    c_command("A", "D-A"); // A = FRAME - 5
-    c_command("D", "M"); // D = *(FRAME - 5)
-    comp_to_reg(REG_RETURN, "D"); // RETURN = *(FRAME - 5) = D
-    // *ARG = pop() sets the *ARG (the first arg pushed by the caller) to the return value
-    // SP = ARG + 1 repositions the stack back to caller (which is after the return value)
-    pop(SEG_ARG, 0); // *ARG = return value
-    reg_to_dest(REG_ARG, "D");
-    comp_to_reg(REG_SP, "D+1");
-    // THAT = *(endFrame - 1) restores THAT of the caller
-    prev_frame_to_reg(REG_THAT);
-    // THIS = *(endFrame - 2) restores THIS of the caller
-    prev_frame_to_reg(REG_THIS);
-    // ARG = *(endFrame - 3) restores ARG of the caller
-    prev_frame_to_reg(REG_ARG);
-    // LCL = *(endFrame - 4) restores LCL of the caller
-    prev_frame_to_reg(REG_LCL);
-    // goto retAddr Go back to the caller return address
-    reg_to_dest(REG_RETURN, "A");
-    jumpNoLabel("0", "JMP");
-    writeNoteEnd();
-  }
+  writeNote("return");
+  reg_to_reg(REG_LCL, REG_FRAME); // D = FRAME = LCL
+  // REG_RETURN = return address
+  a_command("5"); // A = 5
+  c_command("A", "D-A"); // A = FRAME - 5
+  c_command("D", "M"); // D = *(FRAME - 5)
+  comp_to_reg(REG_RETURN, "D"); // RETURN = *(FRAME - 5) = D
+  // *ARG = pop() sets the *ARG (the first arg pushed by the caller) to the return value
+  // SP = ARG + 1 repositions the stack back to caller (which is after the return value)
+  pop(SEG_ARG, 0); // *ARG = return value
+  reg_to_dest(REG_ARG, "D");
+  comp_to_reg(REG_SP, "D+1");
+  // THAT = *(endFrame - 1) restores THAT of the caller
+  prev_frame_to_reg(REG_THAT);
+  // THIS = *(endFrame - 2) restores THIS of the caller
+  prev_frame_to_reg(REG_THIS);
+  // ARG = *(endFrame - 3) restores ARG of the caller
+  prev_frame_to_reg(REG_ARG);
+  // LCL = *(endFrame - 4) restores LCL of the caller
+  prev_frame_to_reg(REG_LCL);
+  // goto retAddr Go back to the caller return address
+  reg_to_dest(REG_RETURN, "A");
+  jumpNoLabel("0", "JMP");
+  writeNoteEnd();
 }
 void vm::CodeWriter::writeComment(const std::string & comment) {
-  if (outputFile.is_open()) {
-    outputFile << comment << std::endl;
-  }
+  output.push_back("// " + comment + "\n");
 }
 void vm::CodeWriter::prev_frame_to_reg(const unsigned int & reg) {
   reg_to_dest(REG_FRAME, "D"); // D = FRAME
@@ -439,47 +421,37 @@ void vm::CodeWriter::prev_frame_to_reg(const unsigned int & reg) {
 }
 // Writes the assembly version of the vm command
 void vm::CodeWriter::writeArithmetic(const std::string& command) {
-  if (outputFile.is_open()) { // JGE JLE
-    outputFile << "//" << command << std::endl;
-    if (command == "add") {
-      binary("D+A");
-    } else if (command == "sub") {
-      binary("A-D");
-    } else if (command == "neg") {
-      unary("-D");
-    } else if (command == "eq") {
-      compare("JEQ");
-    } else if (command == "gt") {
-      compare("JGT");
-    } else if (command == "lt") {
-      compare("JLT");
-    } else if (command == "and") {
-      binary("D&A");
-    } else if (command == "or") {
-      binary("D|A");
-    } else if (command == "not") {
-      unary("!D");
-    } else {
-      throw std::invalid_argument("Invalid arithemtic command.");
-    }
+  writeComment(command);
+  if (command == "add") {
+    binary("D+A");
+  } else if (command == "sub") {
+    binary("A-D");
+  } else if (command == "neg") {
+    unary("-D");
+  } else if (command == "eq") {
+    compare("JEQ");
+  } else if (command == "gt") {
+    compare("JGT");
+  } else if (command == "lt") {
+    compare("JLT");
+  } else if (command == "and") {
+    binary("D&A");
+  } else if (command == "or") {
+    binary("D|A");
+  } else if (command == "not") {
+    unary("!D");
+  } else {
+    throw std::invalid_argument("Invalid arithemtic command.");
   }
 }
 // Writes the assembly push or pop off the stack
 void vm::CodeWriter::writePushPop(const CommandType& command, const std::string& segment, const unsigned int& index) {
-  if (outputFile.is_open()) {
-    if (command == C_POP) {
-      pop(segment, index);
-    } else if (command == C_PUSH) {
-      push(segment, index);
-    } else {
-      throw std::invalid_argument("Invalid command type for push pop.");
-    }
-  }
-}
-// Closes the file
-void vm::CodeWriter::close() {
-  if (outputFile.is_open()) {
-    outputFile.close();
+  if (command == C_POP) {
+    pop(segment, index);
+  } else if (command == C_PUSH) {
+    push(segment, index);
+  } else {
+    throw std::invalid_argument("Invalid command type for push pop.");
   }
 }
 
@@ -497,19 +469,18 @@ void vm::addFileLines(std::vector<std::string>& lines, const std::string& filePa
   }
 }
 
-void vm::concatDirectory(std::vector<std::string>& lines, const std::string& path, const bool& recursive) {
+void vm::forFile(const std::string & path, const bool & recursive, const std::function<void(std::string)> & fn) {
   if (boost::filesystem::is_directory(path)) {
     for(auto & p : boost::filesystem::directory_iterator(path)) {
-      // TODO: check that file type is .vm
       const std::string subPath = p.path().string();
       if (recursive && boost::filesystem::is_directory(subPath)) {
-        concatDirectory(lines, subPath, recursive);
-      } else if (boost::filesystem::is_regular_file(subPath) && boost::filesystem::extension(subPath) == ".vm") {
-        addFileLines(lines, subPath);
+        forFile(subPath, recursive, fn);
+      } else if (boost::filesystem::is_regular_file(subPath) && boost::filesystem::extension(subPath) == ".vm") { // Note: this checks that the file has an extenstion
+        fn(subPath);
       }
     }
   } else if (boost::filesystem::is_regular_file(path)) {
-    addFileLines(lines, path);
+    fn(path);
   } else {
     throw std::invalid_argument("Can not concat a directory that does not exist.");
   }
@@ -549,7 +520,7 @@ std::string vm::Translator::getPathBaseName(const std::string& path) {
   }
 }
 
-void vm::Translator::translateFile(const std::string& filePath, const vm::Options & options) {
+void vm::Translator::translateFile(std::vector<std::string> & output, const std::string& filePath, const vm::Options & options) {
   std::vector<std::string> lines;
   addFileLines(lines, filePath);
 
@@ -558,12 +529,13 @@ void vm::Translator::translateFile(const std::string& filePath, const vm::Option
   boost::filesystem::path filenamePath (filename);
   boost::filesystem::path fullPath (filePath);
   // Joins the directory of the file with the new filename
-  std::string output = (fullPath.parent_path() / filename).string() + ".asm";
 
   vm::Parser parser (lines, options);
   vm::CodeWriter cw (output, filename, options);
 
-  cw.writeInit();
+  if (options.writeInit) {
+    cw.writeInit();
+  }
   while (parser.hasMoreCommands()) {
     vm::CommandType type = parser.commandType();
     if (type == vm::C_ARITHMETIC) {
@@ -589,10 +561,48 @@ void vm::Translator::translateFile(const std::string& filePath, const vm::Option
   }
 }
 
-void vm::Translator::translateDirectory(const std::string& directoryPath, const vm::Options & options) {
-  std::vector<std::string> lines;
-  concatDirectory(lines, directoryPath);
+void vm::Translator::translateFile(const std::string& filePath, const vm::Options & options) {
+  std::vector<std::string> outputLines;
+  
+  // Get the assembly code
+  translateFile(outputLines, filePath, options);
 
+  // Get write file location
+  std::string filename = getPathBaseName(filePath);
+  boost::filesystem::path fullPath (filePath);
+  // Joins the directory of the file with the new filename
+  std::string output = (fullPath.parent_path() / filename).string() + ".asm";
+
+  // Write to file
+  std::ofstream outputFile (output);
+  for (unsigned int i = 0; i < outputLines.size(); i++) {
+    outputFile << outputLines.at(i);
+  }
+  // Makes sure everything is written to the file
+  outputFile.flush();
+  outputFile.close();
+}
+
+void vm::Translator::translateDirectory(const std::string& directoryPath, const vm::Options & options) {
+  std::vector<std::string> outputLines;
+  bool writtenInit = false;
+  Options postInitOptions;
+  postInitOptions.notes = options.notes;
+  postInitOptions.perserveComments = options.perserveComments;
+  postInitOptions.writeInit = false;
+  // Translates each file and adds to outputLines (maintaining their static file names!)
+  auto translateEachFile = [&](std::string path) {
+    if (writtenInit && options.writeInit) {
+      // Already has written the init code, no needed to rewrite it again.
+      translateFile(outputLines, path, postInitOptions);
+    } else {
+      writtenInit = true;
+      translateFile(outputLines, path, options);
+    }
+  };
+  forFile(directoryPath, true, translateEachFile);
+
+  // Get write file location
   std::string filename = getPathBaseName(directoryPath);
     // TODO: make getPathBaseName return path instead to save time coverting string backt to path
   boost::filesystem::path filenamePath (filename);
@@ -600,33 +610,14 @@ void vm::Translator::translateDirectory(const std::string& directoryPath, const 
   // Joins the directory of the file with the new directory filename
   std::string output = (fullPath.parent_path() / filename).string() + ".asm";
 
-  vm::Parser parser (lines, options);
-  vm::CodeWriter cw (output, filename, options);
-
-  cw.writeInit();
-  while (parser.hasMoreCommands()) {
-    vm::CommandType type = parser.commandType();
-    if (type == vm::C_ARITHMETIC) {
-      cw.writeArithmetic(parser.arg1());
-    } else if (type == vm::C_POP || type == vm::C_PUSH) {
-      cw.writePushPop(type, parser.arg1(), parser.arg2());
-    } else if (type == vm::C_GOTO) {
-      cw.writeGoto(parser.arg1());
-    } else if (type == vm::C_IF) {
-      cw.writeIf(parser.arg1());
-    } else if (type == vm::C_FUNCTION) {
-      cw.writeFunction(parser.arg1(), parser.arg2());
-    } else if (type == vm::C_LABEL) {
-      cw.writeLabel(parser.arg1());
-    } else if (type == vm::C_CALL) {
-      cw.writeCall(parser.arg1(), parser.arg2());
-    } else if (type == vm::C_RETURN) {
-      cw.writeReturn();
-    } else if (type == vm::C_COMMENT) {
-      cw.writeComment(parser.arg1());
-    }
-    parser.advance();
+  // Write to file
+  std::ofstream outputFile (output);
+  for (unsigned int i = 0; i < outputLines.size(); i++) {
+    outputFile << outputLines.at(i);
   }
+  // Makes sure everything is written to the file
+  outputFile.flush();
+  outputFile.close();
 }
 
 void vm::Translator::translate(const std::string& path, const vm::Options & options) {

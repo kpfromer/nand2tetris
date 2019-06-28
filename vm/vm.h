@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <functional>
 
 // Segment names
 // Memory segments
@@ -49,6 +50,7 @@ namespace vm {
   struct Options {
     bool perserveComments = false;
     bool notes = false;
+    bool writeInit = true;
   };
 
   class Parser {
@@ -70,7 +72,7 @@ namespace vm {
     private:
       unsigned int labelCount = 0;
       unsigned int functionCount = 0;
-      std::ofstream outputFile;
+      std::vector<std::string> & output;
       std::string outputFilename;
       vm::Options options;
       // Notes:
@@ -138,8 +140,7 @@ namespace vm {
       void writeNoteEnd();
     public:
       // Opens the outputFile for writing
-      CodeWriter(const std::string& path, const std::string& outputFilename, const vm::Options & options);
-      ~CodeWriter();
+      CodeWriter(std::vector<std::string> & output, const std::string& outputFilename, const vm::Options & options);
       // writes the assembly instructions that effect the bootstrap code which initalizes the VM.
       void writeInit();
       // Writes the assembly code for the label command
@@ -160,20 +161,19 @@ namespace vm {
       void writePushPop(const CommandType& command, const std::string& segment, const unsigned int& index);
       // Writes the comment
       void writeComment(const std::string & comment);
-      // Closes the file
-      void close();
   };
 
   enum PATH_TYPE { DIRECTORY, FILE, NOTFOUND };
 
   void addFileLines(std::vector<std::string>& lines, const std::string& filePath);
-  void concatDirectory(std::vector<std::string>& lines, const std::string& path, const bool& recursive = true);
+  void forFile(const std::string & path, const bool & recursive, const std::function<void(std::string)> & fn);
 
   class Translator {
     private:
       static PATH_TYPE getType(const std::string& path);
       static std::string getPathBaseName(const std::string& path);
     public:
+      static void translateFile(std::vector<std::string> & output, const std::string& filePath, const vm::Options & options);
       static void translateFile(const std::string& filePath, const vm::Options & options);
       static void translateDirectory(const std::string& directoryPath, const vm::Options & options);
       static void translate(const std::string& path, const vm::Options & options);
