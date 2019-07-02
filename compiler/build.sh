@@ -1,0 +1,1 @@
+g++ -lboost_filesystem -lboost_system main.cpp compiler.cpp -o main.out
