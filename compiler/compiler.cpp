@@ -802,12 +802,6 @@ void compiler::CompilationEngine::compileTerm() {
   } else if (initialType == KEYWORD) { // keywordConstant
     compileKeyword();
   } else if (initialType == IDENTIFIER) { // varName | varName'['expression']' | subroutineCall
-    // TODO: peek ahead -----------------------------------------------------------
-    // TODO:
-    // peak ahead to see if subroutineCall or varName'['expression']', default is varName
-    // reset peak to go back to current token
-    std::cout << "PRE PEEK" << std::endl;
-    debug();
     tokenizer.peek();
     // TODO: find a better way of peeking
     if (tokenizer.tokenType() == SYMBOL && (tokenizer.symbol() == '.' || tokenizer.symbol() == '(')) {
@@ -815,10 +809,8 @@ void compiler::CompilationEngine::compileTerm() {
       debug();
       compileSubroutineCall();
     } else if (tokenizer.tokenType() == SYMBOL && tokenizer.symbol() == '[') { // varName'['expression']'
-      // TODO: array handling
       tokenizer.resetPeek();
       std::string varName = requireIdentifier(); // varName
-      // TODO: array call
       requireSymbol('[');
       compileExpression();
       requireSymbol(']');
@@ -837,33 +829,6 @@ void compiler::CompilationEngine::compileTerm() {
       // writer.writePush();
       writePush(varName);
     }
-    // std::cout << "POST PEEK" << std::endl;
-    // debug();
-    // std::cout << "RESET PEEK" << std::endl;
-    // tokenizer.resetPeek();
-    // debug();
-    // compileSubroutineCall();
-    // TODO: original CLEAN UP
-    // std::string varName = requireIdentifier();
-    // if (tokenizer.tokenType() == SYMBOL && tokenizer.symbol() == '.') { // subroutineCall
-    //   compileSubroutineCall(); // TODO: fix
-    //   // requireSymbol('.');
-    //   // std::string functionName = requireIdentifier("Invalid subroutine name."); // subroutine name
-    //   // requireSymbol('(');
-    //   // unsigned int numArgs = compileExpressionList();
-    //   // requireSymbol(')');
-    //   // writer.writeCall(functionName, numArgs);
-    // } else if (tokenizer.tokenType() == SYMBOL && tokenizer.symbol() == '[') { // varName'['expression']'
-    //   // TODO: array call
-    //   requireSymbol('[');
-    //   compileExpression();
-    //   requireSymbol(']');
-    // } else { // varName
-    //   // SymbolicTable::Symbol symbol = table.getSymbol(varName);
-    //   // TODO: write push on stack with variable type and name (if Symbol )
-    //   // writer.writePush();
-    //   writePush(varName);
-    // }
   } else if (initialType == SYMBOL) { // '('expression')' | unaryOp term
     char symbol = tokenizer.symbol();
     if (symbol == '-' || symbol == '~') { // unaryOp term
