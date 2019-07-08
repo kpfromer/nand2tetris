@@ -15,7 +15,9 @@
 // TODO: ensure that all functions and methods return
 // TODO: Remove need for explicit return this in constructor (typecheck that there is no return in constructor since the compiler will create it)
 // Harder
+// TODO: type checking (currently types are just for the user and don't serve any purpose)
 // TODO: method overloading (symbolic table for methods, add an argument count to table for tracking)
+// TODO: operator overloading (change + for strings return a new concatenated string)
 // TODO: add ablity to create variables in if elif else while, etc (linked list of symbolic tables)
 // TODO: add else if
 // TODO: add why to reference this to get values ex. this.value = value
@@ -24,13 +26,17 @@
 
 namespace compiler {
 
-  enum TokenType {
-    SYMBOL, KEYWORD, IDENTIFIER, INT_CONST, STRING_CONST, INVALID_TOKEN
-  };
-  enum Keyword {
-    CLASS, METHOD, FUNCTION, CONSTRUCTOR, INT, BOOLEAN, CHAR, VOID, VAR, STATIC,
-    FIELD, LET, DO, IF, ELSE, WHILE, RETURN, TRUE, FALSE, NULLVAL, THIS
-  };
+  // forward declare private enums
+  namespace detail {
+    enum TokenType {
+      SYMBOL, KEYWORD, IDENTIFIER, INT_CONST, STRING_CONST, INVALID_TOKEN
+    };
+    enum Keyword {
+      CLASS, METHOD, FUNCTION, CONSTRUCTOR, INT, BOOLEAN, CHAR, VOID, VAR, STATIC,
+      FIELD, LET, DO, IF, ELSE, WHILE, RETURN, TRUE, FALSE, NULLVAL, THIS
+    };
+  }
+
   // Handles the input
   // Ignores white space
   // Advance the input, one token at a time
@@ -65,9 +71,9 @@ namespace compiler {
       void peek(const unsigned int & numberOfTokens = 1);
       void resetPeek();
       // Returns the type of the currentToken
-      TokenType tokenType();
+      detail::TokenType tokenType();
       // Returns the keyworkd which is the current token (this should only be called only if the tokenType is KEYWORD)
-      Keyword keyWord();
+      detail::Keyword keyWord();
       // Returns the character which is the current token (tokenType should be SYMBOL)
       char symbol();
       // Returns the identifier which is the current token (tokenType should be IDENTIFIER)
@@ -176,7 +182,8 @@ namespace compiler {
     public:
       CompilationEngine(const std::vector<std::string> & lines, std::vector<std::string> & output, CompilationEngineOptions options = { false });
       void debug();
-      void requireKeyword(const Keyword & keyword);
+      void error();
+      void requireKeyword(const detail::Keyword & keyword);
       void requireSymbol(const char & symbol);
       std::string requireIdentifier(const std::string & errorMessage = "Invalid identifier.");
       void compileString();
@@ -231,10 +238,25 @@ namespace compiler {
       static std::string getOutputFileLocation(const std::string & path);
   };
 
-  // Creates a JackTokenizer from the file
-  // Creates an outputfile called .xml
-  // Uses a created CompilationEngine to compile the input JackTokenizer into the outputFile
-  // class JackAnalzyer
+
+  // helper functions
+  // private to compiler
+  namespace detail {
+    bool isOp(const char & value);
+    bool isSymbol(const char & value);
+    bool isKeyWord(const std::string & word);
+    Keyword getKeyWord(const std::string & value);
+    std::string getKeywordString(const Keyword & keyword);
+    bool isDigit(const char & value);
+    int getDigit(const char & value);
+    compiler::VMWriter::Arithmetic getArithmeticType(const char & value);
+    unsigned int toCharValue(const char & value);
+    compiler::VMWriter::Segment convertKindToSegment(const compiler::SymbolicTable::Kind & kind);
+    bool isNumber(const std::string & word, const bool & decimal = false);
+    // TODO: future - double getNumber(const std::string & numberString);
+    // Does not handle negitive numbers!
+    unsigned int getNumber(const std::string & numberString);
+  };
 }
 
 #endif

@@ -31,25 +31,30 @@ int main (const int argc, const char ** arg) {
   input.close();
 
   std::vector<std::string> output;
-  compiler::CompilationEngine engine (engineLines, output);
 
-  std::string outputFileLoc;
-  if (argc > 2) {
-    outputFileLoc = arg[2];
-  } else {
-    outputFileLoc = compiler::Writer::getOutputFileLocation(arg[1]);
+  try {
+    compiler::CompilationEngine engine (engineLines, output);
+
+    std::string outputFileLoc;
+    if (argc > 2) {
+      outputFileLoc = arg[2];
+    } else {
+      outputFileLoc = compiler::Writer::getOutputFileLocation(arg[1]);
+    }
+    
+    std::ofstream outputFile (outputFileLoc);
+
+    for (unsigned int i = 0; i < output.size(); i++) {
+      outputFile << output.at(i) << std::endl;
+      // std::cout << output.at(i) << std::endl;
+    }
+
+    outputFile.close();
+
+    return 0;
+  } catch (const std::invalid_argument & error) {
+    std::cerr << "Failed to compile." << std::endl;
+    std::cerr << "Reason: " << error.what() << std::endl;
+    return 1;
   }
-
-  engine.debug();
-  
-  std::ofstream outputFile (outputFileLoc);
-
-  for (unsigned int i = 0; i < output.size(); i++) {
-    outputFile << output.at(i) << std::endl;
-    std::cout << output.at(i) << std::endl;
-  }
-
-  outputFile.close();
-
-  return 0;
 }
