@@ -684,8 +684,3 @@ void compiler::CompilationEngine::compileVarDec() {
   requireSymbol(';');
   writeTag("</varDec>");
 }
-
-// '{' varDec* statements '}'
-void compiler::CompilationEngine::compileSubroutineBody() {
-  
-}

@@ -200,8 +200,6 @@ namespace compiler {
       void compileClassVarDec();
       // Compiles a complete method, function, or constructor (class methods)
       void compileSubroutineDec();
-      // Compiles a subroutine's body
-      void compileSubroutineBody();
       // Compiles a var declaration
       void compileVarDec();
       // Compiles a subroutine call
