@@ -9,8 +9,22 @@ void compiler::CompilationEngine::debug() {
   table.print();
 }
 
-void compiler::CompilationEngine::error() {
-  std::cerr << "Error at line " << std::to_string(tokenizer.getLineNumber()) << " " << std::to_string(tokenizer.getLinePosition()) << std::endl;
+void compiler::CompilationEngine::throwError(const std::string & errorMessage) {
+  unsigned int lineNumber = tokenizer.getLineNumber();
+  unsigned int position = tokenizer.getLinePosition();
+  std::string lineNumberString = std::to_string(lineNumber + 1);
+  std::string positionString = std::to_string(position + 1);
+  std::string location = lineNumberString + " | " +  lines.at(lineNumber) + "\n";
+  for (unsigned int i = 0; i < lineNumberString.size(); i++) { // add space for to account for (positionString + " | ") 
+    location += " ";
+  }
+  location += " | ";
+  for (unsigned int i = 0; i < position - 1; i++) {
+    location += "-";
+  }
+  location += "^";
+
+  throw std::invalid_argument("filename:" + lineNumberString + ":" + positionString + ": error: " + errorMessage + ":\n" + location);
 }
 
 void compiler::CompilationEngine::requireSymbol(const char & symbol) {
@@ -31,21 +45,21 @@ void compiler::CompilationEngine::requireSymbol(const char & symbol) {
       }
       tokenizer.advance();
     } else {
-      throw new std::invalid_argument("Invalid symbol. Wanted '" + std::string(1, tokenizer.symbol()) + "' got '" + std::string(1, symbol) + "'");
+      throwError("Invalid symbol. Wanted '" + std::string(1, tokenizer.symbol()) + "' got '" + std::string(1, symbol) + "'");
     }
   } else {
-    throw new std::invalid_argument("Invalid type.");
+    throwError("Wanted the symbol '" + std::string(1, symbol) + "'");
   }
 }
 
 void compiler::CompilationEngine::requireKeyword(const detail::Keyword & keyword) {
   if (tokenizer.tokenType() != detail::KEYWORD) {
     std::cerr << "Line: " << std::to_string(tokenizer.getLineNumber()) << std::endl;
-    throw std::invalid_argument("Invalid keyword. Wanted keyword but recieved other type of " + std::to_string(tokenizer.tokenType()));
+    throwError("Invalid keyword. Wanted keyword but recieved other type of " + std::to_string(tokenizer.tokenType()));
   }
   if (tokenizer.tokenType() == detail::KEYWORD && tokenizer.keyWord() != keyword) {
     std::cerr << "Line: " << std::to_string(tokenizer.getLineNumber()) << std::endl;
-    throw std::invalid_argument("Invalid keyword. Wanted: " + getKeywordString(keyword) + ". Recieved: " + getKeywordString(tokenizer.keyWord()) + ".");
+    throwError("Invalid keyword. Wanted: " + getKeywordString(keyword) + ". Recieved: " + getKeywordString(tokenizer.keyWord()) + ".");
   }
   if (options.onlyTokenize) {
     output.push_back("<keyword>" + getKeywordString(keyword) + "</keyword>");
@@ -64,13 +78,13 @@ std::string compiler::CompilationEngine::requireIdentifier(const std::string & e
     return identifier;
   } else {
     std::cerr << "Line: " << std::to_string(tokenizer.getLineNumber()) << std::endl;
-    throw std::invalid_argument(errorMessage);
+    throwError(errorMessage);
   }
 }
 
 void compiler::CompilationEngine::compileString() {
   if (tokenizer.tokenType() != detail::STRING_CONST) {
-    throw std::invalid_argument("Can not compile invalid string type.");
+    throwError("Can not compile invalid string type.");
   }
   std::string value = tokenizer.stringVal();
   writer.writePush(VMWriter::CONST, value.length());
@@ -84,7 +98,7 @@ void compiler::CompilationEngine::compileString() {
 
 void compiler::CompilationEngine::compileKeyword() {
   if (tokenizer.tokenType() != detail::KEYWORD) {
-    throw std::invalid_argument("Can not compile an invalid keyword type.");
+    throwError("Can not compile an invalid keyword type.");
   }
   detail::Keyword keyword = tokenizer.keyWord();
   if (keyword == detail::THIS) {
@@ -287,10 +301,10 @@ void compiler::CompilationEngine::compileTerm() {
       compileExpression();
       requireSymbol(')');
     } else {
-      throw std::invalid_argument("Invalid symbol in term: " + std::string(1, symbol));
+      throwError("Invalid symbol in term: '" + std::string(1, symbol) + "'");
     }
   } else {
-    throw std::invalid_argument("Invalid term type.");
+    throwError("Invalid term type.");
   }
 
   writeTag("</term>");
@@ -461,7 +475,7 @@ void compiler::CompilationEngine::compileClassVarDec() {
   std::string type;
   writeTag("<classVarDec>");
   if (tokenizer.tokenType() != detail::KEYWORD) {
-    throw std::invalid_argument("Invalid class variable declare");
+    throwError("Invalid class variable declare");
   }
 
   if (tokenizer.keyWord() == detail::STATIC) {
@@ -471,7 +485,7 @@ void compiler::CompilationEngine::compileClassVarDec() {
     requireKeyword(detail::Keyword::FIELD);
     variableStorageType = SymbolicTable::Kind::FIELD;
   } else {
-    throw std::invalid_argument("Invalid class variable declaration.");
+    throwError("Invalid class variable declaration.");
   }
   
   if (tokenizer.tokenType() == detail::IDENTIFIER) {
@@ -489,10 +503,10 @@ void compiler::CompilationEngine::compileClassVarDec() {
       requireKeyword(detail::BOOLEAN);
       type = "boolean";
     } else {
-      throw std::invalid_argument("Invalid class var dec type.");
+      throwError("Invalid class var dec type.");
     }
   } else  {
-    throw std::invalid_argument("Invalid class var dec type.");
+    throwError("Invalid class var dec type.");
   }
   
   // First field/static defintion
@@ -528,10 +542,10 @@ void compiler::CompilationEngine::compileVariable(const std::string & errorVaria
       requireKeyword(detail::BOOLEAN);
       type = "boolean";
     } else {
-      throw std::invalid_argument("Invalid " + errorVariableName + " type.");
+      throwError("Invalid " + errorVariableName + " type.");
     }
   } else  {
-    throw std::invalid_argument("Invalid " + errorVariableName + " type.");
+    throwError("Invalid " + errorVariableName + " type.");
   }
   std::string varName = tokenizer.identifier();
   tokenizer.advance();
@@ -546,7 +560,7 @@ void compiler::CompilationEngine::compileSubroutineDec() {
   writeTag("<subroutineDec>");
   detail::TokenType type = tokenizer.tokenType();
   if (type != detail::KEYWORD) {
-    throw std::invalid_argument("Invalid subroutine type.");
+    throwError("Invalid subroutine type.");
   }
   detail::Keyword keyword = tokenizer.keyWord();
   if (keyword == detail::CONSTRUCTOR) {
@@ -559,7 +573,7 @@ void compiler::CompilationEngine::compileSubroutineDec() {
     // This needs to be defined FIRST before the other arguments, which are defined lower in compileVariable
     table.define("this", className, SymbolicTable::Kind::ARGUMENT);
   } else {
-    throw std::invalid_argument("Invalid subroutine type.");
+    throwError("Invalid subroutine type.");
   }
 
   // Redefine type
@@ -575,12 +589,12 @@ void compiler::CompilationEngine::compileSubroutineDec() {
     } else if (keyword == detail::CHAR) {
       requireKeyword(detail::CHAR);
     } else {
-      throw std::invalid_argument("Invalid keyword for subroutine type.");
+      throwError("Invalid keyword for subroutine type.");
     }
   } else if (type == detail::IDENTIFIER) {
     requireIdentifier();
   } else {
-    throw std::invalid_argument("Invalid subroutine return type.");
+    throwError("Invalid subroutine return type.");
   }
 
   // subroutineName
@@ -652,10 +666,10 @@ void compiler::CompilationEngine::compileVarDec() {
         requireKeyword(detail::BOOLEAN);
         type = "boolean";
       } else {
-        throw std::invalid_argument("Invalid var type.");
+        throwError("Invalid var type.");
       }
     } else  {
-      throw std::invalid_argument("Invalid var type.");
+      throwError("Invalid var type.");
     }
     // First variable defintion
     table.define(tokenizer.identifier(), type, compiler::SymbolicTable::LOCAL);

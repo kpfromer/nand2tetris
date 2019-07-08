@@ -53,8 +53,7 @@ int main (const int argc, const char ** arg) {
 
     return 0;
   } catch (const std::invalid_argument & error) {
-    std::cerr << "Failed to compile." << std::endl;
-    std::cerr << "Reason: " << error.what() << std::endl;
+    std::cerr << error.what() << std::endl;
     return 1;
   }
 }

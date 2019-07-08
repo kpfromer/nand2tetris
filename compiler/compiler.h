@@ -15,6 +15,7 @@
 // TODO: ensure that all functions and methods return
 // TODO: Remove need for explicit return this in constructor (typecheck that there is no return in constructor since the compiler will create it)
 // Harder
+// TODO: break, continue loop
 // TODO: type checking (currently types are just for the user and don't serve any purpose)
 // TODO: method overloading (symbolic table for methods, add an argument count to table for tracking)
 // TODO: operator overloading (change + for strings return a new concatenated string)
@@ -182,7 +183,7 @@ namespace compiler {
     public:
       CompilationEngine(const std::vector<std::string> & lines, std::vector<std::string> & output, CompilationEngineOptions options = { false });
       void debug();
-      void error();
+      void throwError(const std::string & errorMessage);
       void requireKeyword(const detail::Keyword & keyword);
       void requireSymbol(const char & symbol);
       std::string requireIdentifier(const std::string & errorMessage = "Invalid identifier.");
