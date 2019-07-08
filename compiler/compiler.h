@@ -235,8 +235,11 @@ namespace compiler {
       enum PATH_TYPE { DIRECTORY, FILE, NOTFOUND };
       static PATH_TYPE getType(const std::string & path);
       static boost::filesystem::path getPathBaseName(const std::string& path);
+      static void forFile(const std::string & path, const bool & recursive, const std::function<void(boost::filesystem::path)> & fn);
     public:
       static std::string getOutputFileLocation(const std::string & path);
+      static int compile(const std::string & inputPath, const std::string & outputPath);
+      static int compile(const std::string & inputPath);
   };
 
 
